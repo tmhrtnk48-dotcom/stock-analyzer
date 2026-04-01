@@ -318,7 +318,7 @@ function doAnalyze() {
 
   fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
