@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="AI株式分析">
+<meta name="theme-color" content="#07070f">
+<title>AI株式分析</title>
+
+<!-- PWA Manifest (inline via data URI) -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22AI%E6%A0%AA%E5%BC%8F%E5%88%86%E6%9E%90%22%2C%22short_name%22%3A%22AI%E6%A0%AA%E5%BC%8F%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2307070f%22%2C%22theme_color%22%3A%22%2307070f%22%7D">
+
+<!-- Apple Touch Icon (SVG → data URI) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%2307070f'/%3E%3Ctext x='90' y='115' font-size='90' text-anchor='middle'%3E📊%3C/text%3E%3C/svg%3E">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; background: #07070f; }
+body { height: 100%; background: #07070f; color: #e0e0e0; font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif; -webkit-font-smoothing: antialiased; }
+input, textarea, button { font-family: inherit; font-size: 16px; }
+
+#app { max-width: 500px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+.header {
+  position: sticky; top: 0; z-index: 50;
+  background: #0a0a18; border-bottom: 1px solid #1a1a2e;
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+.header-icon { font-size: 22px; line-height: 1; }
+.header-title { font-size: 15px; font-weight: 900; color: #fff; }
+.header-sub { font-size: 9px; color: #444; letter-spacing: 1px; margin-top: 1px; }
+.badge { margin-left: auto; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.35); border-radius: 20px; padding: 3px 11px; font-size: 11px; color: #00d4ff; white-space: nowrap; }
+
+.main { padding: 16px 14px; padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px)); flex: 1; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.lbl { color: #555; font-size: 10px; letter-spacing: 1px; margin-bottom: 5px; }
+
+input[type=text], textarea {
+  width: 100%; background: #0d0d1a; border: 1px solid #1e1e30;
+  border-radius: 8px; padding: 12px; color: #fff; outline: none;
+  -webkit-appearance: none; appearance: none; font-size: 16px;
+}
+input.mono { font-family: "Courier New", monospace; font-size: 18px; }
+textarea { resize: none; line-height: 1.75; color: #ccc; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+.slot {
+  border-radius: 10px; overflow: hidden; position: relative;
+  background: #0d0d1a; min-height: 82px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; border: 2px dashed #252535;
+}
+.slot.filled { border-style: solid; }
+.slot img { width: 100%; display: block; max-height: 150px; object-fit: cover; }
+.slot-empty { text-align: center; padding: 10px; pointer-events: none; }
+.slot-ico { font-size: 22px; margin-bottom: 3px; }
+.slot-nm { font-size: 13px; font-weight: 700; }
+.slot-hint { font-size: 11px; color: #555; margin-top: 2px; }
+.slot-ov {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  padding: 18px 9px 6px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.slot-ov-nm { font-size: 12px; font-weight: 700; }
+.del { background: rgba(210,35,35,0.9); border: none; border-radius: 6px; color: #fff; font-size: 13px; padding: 4px 12px; font-weight: 700; cursor: pointer; }
+
+.btn {
+  width: 100%; padding: 17px; text-align: center;
+  background: linear-gradient(135deg,#00d4ff,#c77dff);
+  border: none; border-radius: 14px;
+  color: #fff; font-size: 16px; font-weight: 900; letter-spacing: 1px;
+  cursor: pointer; margin-top: 16px; margin-bottom: 8px;
+  -webkit-appearance: none; appearance: none;
+}
+.btn:disabled { background: #181828; color: #3a3a4a; cursor: default; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.loading { animation: blink 1s infinite; }
+
+.err { background: #1a0808; border: 1px solid #ff4444; border-radius: 10px; padding: 12px 14px; color: #ff8080; font-size: 13px; margin-bottom: 12px; }
+
+/* Results */
+.vbox { border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; border: 2px solid; }
+.vemoji { font-size: 34px; line-height: 1; }
+.vlabel { color: #888; font-size: 10px; letter-spacing: 2px; }
+.vtext { font-size: 26px; font-weight: 900; line-height: 1.2; }
+.vright { text-align: right; margin-left: auto; }
+.clabel { color: #666; font-size: 10px; }
+.cnum { font-size: 22px; font-weight: 800; }
+.cbarbg { height: 4px; width: 54px; background: #1a1a2e; border-radius: 4px; margin-top: 4px; }
+.cbar { height: 4px; border-radius: 4px; }
+
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.cell { background: #0d0d1a; border-radius: 10px; padding: 10px 6px; text-align: center; border: 1px solid rgba(120,120,200,0.15); }
+.clbl { font-size: 9px; color: #555; margin-bottom: 4px; white-space: pre-line; }
+.cval { font-size: 12px; font-weight: 800; }
+
+.blk { background: #0d0d1a; border-radius: 0 10px 10px 0; padding: 12px 14px; margin-bottom: 10px; border: 1px solid rgba(120,120,200,0.1); border-left-width: 3px; }
+.blklbl { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+.blktxt { font-size: 14px; line-height: 1.85; color: #ccc; }
+
+.disc { margin-top: 18px; padding: 10px 12px; background: #0a0a14; border-radius: 8px; font-size: 10px; color: #3a3a48; line-height: 1.7; }
+
+.sectitle { color: #555; font-size: 10px; letter-spacing: 2px; margin-bottom: 10px; }
+
+/* Install banner */
+.install-banner {
+  background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.25);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;
+  font-size: 13px; color: #aaa; line-height: 1.7;
+}
+.install-banner strong { color: #00d4ff; }
+.install-banner .close-banner { float: right; background: none; border: none; color: #555; font-size: 16px; cursor: pointer; padding: 0; margin-left: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <span class="header-icon">📊</span>
+    <div>
+      <div class="header-title">AI株式分析</div>
+      <div class="header-sub">POWERED BY CLAUDE</div>
+    </div>
+    <div class="badge" id="badge" style="display:none">0 / 5 枚</div>
+  </div>
+
+  <div class="main">
+
+    <!-- Install guide (shown until dismissed) -->
+    <div class="install-banner" id="installBanner">
+      <button class="close-banner" onclick="dismissBanner()">✕</button>
+      📲 <strong>ホーム画面に追加する方法：</strong><br>
+      Safariの <strong>共有ボタン（□↑）</strong> →「<strong>ホーム画面に追加</strong>」→「追加」
+    </div>
+
+    <div class="row2">
+      <div>
+        <div class="lbl">証券コード</div>
+        <input class="mono" type="text" inputmode="numeric" id="iCode" placeholder="7203">
+      </div>
+      <div>
+        <div class="lbl">銘柄名</div>
+        <input type="text" id="iName" placeholder="トヨタ自動車">
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div class="lbl">補足メモ（任意）</div>
+      <textarea id="iNotes" rows="3" placeholder="例）保有中。損切り2,700円に設定。&#10;為替の影響が心配。"></textarea>
+    </div>
+
+    <div class="sectitle">📷 チャート・板情報を追加</div>
+    <div class="grid2" id="imgGrid"></div>
+
+    <button class="btn" id="analyzeBtn" disabled onclick="doAnalyze()">画像を追加して分析開始</button>
+
+    <div class="err" id="errBox" style="display:none"></div>
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+var CHARTS = [
+  { key:'board',   label:'板情報', icon:'⊞', color:'#00d4ff' },
+  { key:'m5',      label:'5分足',  icon:'⚡', color:'#00ff9d' },
+  { key:'daily',   label:'日足',   icon:'📈', color:'#ffb800' },
+  { key:'weekly',  label:'週足',   icon:'📊', color:'#ff6b35' },
+  { key:'monthly', label:'月足',   icon:'🗓', color:'#c77dff' },
+];
+
+var VERDICT = {
+  '強い買い': { color:'#00ff9d', bg:'rgba(0,255,157,0.13)',   border:'#00ff9d', emoji:'🟢🟢' },
+  '買い':     { color:'#7fff7f', bg:'rgba(127,255,127,0.11)', border:'#7fff7f', emoji:'🟢' },
+  '様子見':   { color:'#ffb800', bg:'rgba(255,184,0,0.11)',   border:'#ffb800', emoji:'🟡' },
+  '売り':     { color:'#ff6b6b', bg:'rgba(255,107,107,0.11)', border:'#ff6b6b', emoji:'🔴' },
+  '強い売り': { color:'#ff3030', bg:'rgba(255,48,48,0.13)',   border:'#ff3030', emoji:'🔴🔴' },
+};
+
+var imgs = {};
+
+function dismissBanner() {
+  var b = document.getElementById('installBanner');
+  if (b) b.style.display = 'none';
+  try { localStorage.setItem('bannerDismissed','1'); } catch(e) {}
+}
+
+function updateCount() {
+  var n = Object.keys(imgs).length;
+  var badge = document.getElementById('badge');
+  var btn = document.getElementById('analyzeBtn');
+  if (n > 0) { badge.style.display = ''; badge.textContent = n + ' / 5 枚'; }
+  else { badge.style.display = 'none'; }
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? '画像を追加して分析開始' : '🔍 AI分析を実行（' + n + '枚）';
+}
+
+function renderGrid() {
+  var grid = document.getElementById('imgGrid');
+  grid.innerHTML = '';
+  CHARTS.forEach(function(ct) {
+    var div = document.createElement('div');
+    div.className = 'slot' + (imgs[ct.key] ? ' filled' : '');
+    if (imgs[ct.key]) {
+      div.style.borderColor = ct.color + '66';
+      var img = document.createElement('img');
+      img.src = imgs[ct.key];
+      img.alt = ct.label;
+      div.appendChild(img);
+      var ov = document.createElement('div');
+      ov.className = 'slot-ov';
+      var nm = document.createElement('span');
+      nm.className = 'slot-ov-nm';
+      nm.style.color = ct.color;
+      nm.textContent = ct.icon + ' ' + ct.label;
+      var db = document.createElement('button');
+      db.className = 'del';
+      db.textContent = '✕';
+      db.setAttribute('data-key', ct.key);
+      db.addEventListener('click', function(e) {
+        e.stopPropagation();
+        delete imgs[e.currentTarget.getAttribute('data-key')];
+        renderGrid();
+      });
+      ov.appendChild(nm); ov.appendChild(db);
+      div.appendChild(ov);
+    } else {
+      div.style.borderColor = ct.color + '44';
+      var inner = document.createElement('div');
+      inner.className = 'slot-empty';
+      inner.innerHTML = '<div class="slot-ico">' + ct.icon + '</div><div class="slot-nm" style="color:' + ct.color + '">' + ct.label + '</div><div class="slot-hint">タップして追加</div>';
+      div.appendChild(inner);
+      (function(key) {
+        div.addEventListener('click', function() { pickFile(key); });
+      })(ct.key);
+    }
+    grid.appendChild(div);
+  });
+  updateCount();
+}
+
+function pickFile(key) {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.addEventListener('change', function() {
+    var file = inp.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.addEventListener('load', function(e) {
+      imgs[key] = e.target.result;
+      renderGrid();
+    });
+    reader.readAsDataURL(file);
+  });
+  inp.click();
+}
+
+function showErr(msg) {
+  var b = document.getElementById('errBox');
+  b.textContent = '⚠️ ' + msg;
+  b.style.display = '';
+}
+function hideErr() { document.getElementById('errBox').style.display = 'none'; }
+
+function doAnalyze() {
+  var keys = Object.keys(imgs);
+  if (keys.length === 0) { showErr('1枚以上の画像を追加してください。'); return; }
+  hideErr();
+  document.getElementById('results').innerHTML = '';
+
+  var btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = '⏳ AIが分析中…';
+
+  var content = [];
+  CHARTS.forEach(function(ct) {
+    var d = imgs[ct.key];
+    if (!d) return;
+    var mimeMatch = d.match(/^data:(image\/[^;]+);base64,/);
+    var mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    var b64 = d.split(',')[1];
+    content.push({ type:'image', source:{ type:'base64', media_type:mime, data:b64 } });
+    content.push({ type:'text', text:'上の画像は「' + ct.label + '」です。' });
+  });
+
+  var uploaded = CHARTS.filter(function(c){ return imgs[c.key]; }).map(function(c){ return c.label; }).join('、');
+  var code = document.getElementById('iCode').value;
+  var name = document.getElementById('iName').value;
+  var notes = document.getElementById('iNotes').value;
+
+  var prompt = 'あなたは日本株の専門トレーダー兼アナリストです。\n'
+    + '銘柄: ' + (name || '不明') + ' / コード: ' + (code || '不明') + '\n'
+    + 'アップロード画像: ' + uploaded + '\n'
+    + 'ユーザーメモ: ' + (notes || 'なし') + '\n\n'
+    + '画像を詳細に分析し、以下のJSONのみで返答してください（前置き・説明・マークダウン不要）:\n\n'
+    + '{\n'
+    + '  "verdict": "強い買い または 買い または 様子見 または 売り または 強い売り のいずれか",\n'
+    + '  "confidence": 0から100の整数,\n'
+    + '  "keyLevels": { "current": "現在値目安", "target": "目標株価", "stopLoss": "損切りライン" },\n'
+    + '  "chartAnalysis": "各時間軸のトレンド・移動平均・出来高・サポレジ・ローソク足・テクニカル指標を詳述",\n'
+    + '  "boardAnalysis": "板の需給・売買の厚み・短期方向感（板画像なければ省略可）",\n'
+    + '  "newsContext": "銘柄・セクターの最新市場環境・業界トレンド・地政学リスクをウェブ検索も活用して分析",\n'
+    + '  "riskFactors": "下落リスク・損失拡大シナリオ・注意点",\n'
+    + '  "strategy": "エントリー・利確・損切り・保有期間。保有中なら継続/売却/買い増しの判断も",\n'
+    + '  "outlook": { "short": "短期判断", "mid": "中期判断", "long": "長期判断" }\n'
+    + '}';
+
+  content.push({ type:'text', text:prompt });
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      tools: [{ type:'web_search_20250305', name:'web_search' }],
+      messages: [{ role:'user', content:content }],
+    }),
+  })
+  .then(function(res) {
+    if (!res.ok) {
+      return res.json().catch(function(){ return {}; }).then(function(e) {
+        throw new Error((e.error && e.error.message) || ('APIエラー ' + res.status));
+      });
+    }
+    return res.json();
+  })
+  .then(function(data) {
+    var text = (data.content || []).map(function(i){ return i.type === 'text' ? i.text : ''; }).join('\n');
+    var clean = text.replace(/```json/g,'').replace(/```/g,'');
+    var m = clean.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('AI応答の解析に失敗しました。もう一度お試しください。');
+    var r = JSON.parse(m[0]);
+    renderResults(r);
+  })
+  .catch(function(e) {
+    showErr(e.message || 'エラーが発生しました');
+  })
+  .finally(function() {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    updateCount();
+  });
+}
+
+function renderResults(r) {
+  var cfg = VERDICT[r.verdict] || VERDICT['様子見'];
+  var kl = r.keyLevels || {};
+  var ol = r.outlook || {};
+  var conf = parseInt(r.confidence) || 0;
+
+  function cell(label, val, color) {
+    return '<div class="cell" style="border-color:' + color + '33"><div class="clbl">' + label + '</div><div class="cval" style="color:' + color + '">' + (val || '—') + '</div></div>';
+  }
+  function blk(label, text, color) {
+    if (!text) return '';
+    return '<div class="blk" style="border-left-color:' + color + ';border-color:' + color + '22;border-left-color:' + color + '"><div class="blklbl" style="color:' + color + '">' + label + '</div><div class="blktxt">' + text + '</div></div>';
+  }
+  function ocell(label, val) {
+    var c = VERDICT[val] || VERDICT['様子見'];
+    return '<div class="cell" style="border-color:' + c.border + '33"><div class="clbl">' + label + '</div><div class="cval" style="color:' + c.color + '">' + (val || '—') + '</div></div>';
+  }
+
+  var html =
+    '<div class="vbox" style="background:' + cfg.bg + ';border-color:' + cfg.border + '">' +
+      '<div class="vemoji">' + cfg.emoji + '</div>' +
+      '<div style="flex:1"><div class="vlabel">総合判断</div><div class="vtext" style="color:' + cfg.color + '">' + (r.verdict||'') + '</div></div>' +
+      '<div class="vright"><div class="clabel">確信度</div><div class="cnum" style="color:' + cfg.color + '">' + conf + '%</div><div class="cbarbg"><div class="cbar" style="width:' + conf + '%;background:' + cfg.color + '"></div></div></div>' +
+    '</div>' +
+    '<div class="g3">' + cell('現在値目安',kl.current,'#00d4ff') + cell('目標株価',kl.target,'#00ff9d') + cell('損切りLine',kl.stopLoss,'#ff6b6b') + '</div>' +
+    '<div class="g3" style="margin-bottom:14px">' + ocell('短期\n〜1週間',ol.short) + ocell('中期\n〜1ヶ月',ol.mid) + ocell('長期\n3ヶ月〜',ol.long) + '</div>' +
+    blk('📊 チャート分析',r.chartAnalysis,'#ffb800') +
+    blk('⊞ 板・需給分析',r.boardAnalysis,'#00d4ff') +
+    blk('📰 市場環境・ニュース',r.newsContext,'#c77dff') +
+    blk('⚠️ リスク要因',r.riskFactors,'#ff6b35') +
+    blk('🎯 売買戦略',r.strategy,'#00ff9d') +
+    '<div class="disc">⚠️ 本ツールの分析は投資判断の参考情報です。実際の投資は自己責任で行ってください。</div>';
+
+  var el = document.getElementById('results');
+  el.innerHTML = html;
+  el.scrollIntoView({ behavior:'smooth' });
+}
+
+// Init
+(function() {
+  try {
+    if (localStorage.getItem('bannerDismissed')) {
+      var b = document.getElementById('installBanner');
+      if (b) b.style.display = 'none';
+    }
+  } catch(e) {}
+  renderGrid();
+})();
+</script>
+</body>
+</html>
